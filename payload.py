@@ -180,7 +180,7 @@ EXAMPLE_CONVERSATION = """
 """
 
 
-BASE_URL = "https://10dd-2601-241-8f00-1840-e4e4-2b1b-4463-cdc2.ngrok-free.app"
+BASE_URL = "https://maggie-web-api-endpoint.onrender.com"
 
 def get_system_prompt() -> str:
     return f""" 

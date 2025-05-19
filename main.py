@@ -28,7 +28,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/")
 def read_root():
     return {"message": "Hello, World!"}
@@ -339,6 +338,7 @@ async def get_user_tasks(request: Request):
             content={"error": str(e)},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
 @app.post("/sendEmail")
 async def send_email():
     def send_email_reminder(email_address: str, insights: str):
