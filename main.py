@@ -66,7 +66,7 @@ async def create_ultravox_call(request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     try:
-        payload = get_payload("Mariana")
+        payload = get_payload("")
         # logger.info("payload", payload)
         async with httpx.AsyncClient() as client:
             response = await client.post(
