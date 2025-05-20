@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 import firebase_admin
 from firebase_admin import credentials, firestore
+import logging
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,6 +15,10 @@ from payload import get_payload
 
 app = FastAPI()
 SESSION_ID = ""
+
+# Set up logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize Firestore database
 cred = credentials.Certificate(os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "./firebase-key.json"))
@@ -36,17 +41,16 @@ def read_root():
 async def create_ultravox_call(request: Request):
     global SESSION_ID
     SESSION_ID = request.headers.get("x-session-id")
-    # print("session_id", SESSION_ID)
     api_key = os.getenv("ULTRAVOX_API_KEY")
     if not api_key:
-        print("Ultravox API key not configured")
+        logger.info("Ultravox API key not configured")
         return JSONResponse(
             content={"error": "Error, please try again later"},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     try:
         payload = get_payload("Mariana")
-        # print("payload", payload)
+        # logger.info("payload", payload)
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://api.ultravox.ai/api/calls",
@@ -58,14 +62,14 @@ async def create_ultravox_call(request: Request):
             )
         try:
             data = response.json()
-            # print("data", data)
+            # logger.info("data", data)
         except Exception:
             data = None
         if data and "joinUrl" in data:
             return {"joinUrl": data["joinUrl"]}
         else:
             error_text = response.text
-            # print(f"Ultravox API error: {error_text}")
+            # logger.info(f"Ultravox API error: {error_text}")
             return JSONResponse(
                 content={"error": "Failed to create Ultravox call", "details": error_text},
                 status_code=response.status_code
@@ -78,7 +82,7 @@ async def create_ultravox_call(request: Request):
 
 @app.post("/conversation/summary")
 async def send_conversation_summary(request: Request):
-    # print("in conversation summary")
+    # logger.info("in conversation summary")
     """
     Endpoint handler for the summarizeConversation tool.
     Receives and processes conversation summaries from Maggie.
@@ -104,7 +108,7 @@ async def send_conversation_summary(request: Request):
         doc_ref.set(summary)
         
         # Return a success response
-        # print("Summary saved to Firestore:", summary)
+        # logger.info("Summary saved to Firestore:", summary)
         
         return {
             "message": "Conversation summary saved successfully. Continue the conversation with the user.",
@@ -112,7 +116,7 @@ async def send_conversation_summary(request: Request):
         }
         
     except Exception as e:
-        print(f"Error saving conversation summary: {str(e)}")
+        logger.info(f"Error saving conversation summary: {str(e)}")
         return JSONResponse(
             content={
                 "message": "Failed to save conversation summary. You can still continue the conversation with the user.",
@@ -144,7 +148,7 @@ async def get_conversation_summaries():
         return {"summaries": summaries}
         
     except Exception as e:
-        print(f"Error retrieving conversation summaries: {str(e)}")
+        logger.info(f"Error retrieving conversation summaries: {str(e)}")
         return JSONResponse(
             content={"error": str(e)},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -173,7 +177,7 @@ async def get_conversation_summary(summary_id: str):
         return summary
         
     except Exception as e:
-        print(f"Error retrieving conversation summary: {str(e)}")
+        logger.info(f"Error retrieving conversation summary: {str(e)}")
         return JSONResponse(
             content={"error": str(e)},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -188,7 +192,7 @@ async def add_cognitive_distortions(request: Request):
     try:
         # Parse the request body
         body = await request.json()
-        # print("Received cognitive distortions:", body)
+        # logger.info("Received cognitive distortions:", body)
         
         # Extract the cognitive distortions
         cognitive_distortions = body.get("cognitiveDistortions", [])
@@ -209,7 +213,7 @@ async def add_cognitive_distortions(request: Request):
         doc_ref = db.collection("cognitiveDistortions").document(SESSION_ID)
         doc_ref.set(distortion_data)
         
-        # print(f"Cognitive distortions saved to Firestore: {distortion_data}")
+        # logger.info(f"Cognitive distortions saved to Firestore: {distortion_data}")
         
         return {
             "message": "Cognitive distortions saved successfully. Continue the conversation with the user.",
@@ -217,14 +221,14 @@ async def add_cognitive_distortions(request: Request):
         }
         
     except Exception as e:
-        print(f"Error saving cognitive distortions: {str(e)}")
+        logger.info(f"Error saving cognitive distortions: {str(e)}")
         return JSONResponse(
             content={
                 "message": "Failed to save cognitive distortions. You can still continue the conversation with the user.",
                 "error": str(e)
             },
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        ) 
+        )
 
 @app.get("/cognitiveDistortions/{session_id}")
 async def get_cognitive_distortions(session_id: str):
@@ -249,7 +253,7 @@ async def get_cognitive_distortions(session_id: str):
         return {"cognitiveDistortions": distortions_data}
         
     except Exception as e:
-        print(f"Error retrieving cognitive distortions: {str(e)}")
+        logger.info(f"Error retrieving cognitive distortions: {str(e)}")
         return JSONResponse(
             content={"error": str(e)},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -286,7 +290,7 @@ async def add_user_tasks(request: Request):
         doc_ref = db.collection("userTasks").document(SESSION_ID)
         doc_ref.set(tasks_data)
         
-        print(f"User tasks saved to Firestore: {tasks_data}")
+        logger.info(f"User tasks saved to Firestore: {tasks_data}")
         
         return {
             "message": "User tasks saved successfully. Continue the conversation with the user.",
@@ -294,7 +298,7 @@ async def add_user_tasks(request: Request):
         }
         
     except Exception as e:
-        print(f"Error saving user tasks: {str(e)}")
+        logger.info(f"Error saving user tasks: {str(e)}")
         return JSONResponse(
             content={
                 "message": "Failed to save user tasks. You can still continue the conversation with the user.",
@@ -333,18 +337,17 @@ async def get_user_tasks(request: Request):
         return {"userTasks": tasks_data}
         
     except Exception as e:
-        print(f"Error retrieving user tasks: {str(e)}")
+        logger.info(f"Error retrieving user tasks: {str(e)}")
         return JSONResponse(
             content={"error": str(e)},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 @app.post("/sendEmail")
-async def send_email():
-    def send_email_reminder(email_address: str, insights: str):
-        """
-        Sends an email to the user about the insights of the conversation
-        
+async def send_email(email_address: str, insights: str):
+    """
+    Sends an email to the user about the insights of the conversation
+    
         Args:
             email_address: The users's email address
             
@@ -358,7 +361,12 @@ async def send_email():
                 content={"message": "No email address provided"},
                 status_code=status.HTTP_400_BAD_REQUEST
             )
-
+        if not insights:
+            logger.error("No insights provided")
+            return JSONResponse(
+                content={"message": "No insights provided"},
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
         
         body = """
         Hey there,
