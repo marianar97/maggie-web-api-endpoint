@@ -1,4 +1,7 @@
 import os
+import smtplib
+import ssl
+
 from fastapi import FastAPI, status, Request
 from fastapi.responses import JSONResponse
 import httpx
@@ -8,10 +11,14 @@ from pathlib import Path
 import firebase_admin
 from firebase_admin import credentials, firestore
 import logging
+from pydantic import BaseModel
 
 from fastapi.middleware.cors import CORSMiddleware
 
 from payload import get_payload
+
+
+
 
 app = FastAPI()
 SESSION_ID = ""
@@ -32,6 +39,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class Email(BaseModel):
+    email_address: str
+    insights: str
 
 @app.get("/")
 def read_root():
@@ -344,7 +355,7 @@ async def get_user_tasks(request: Request):
         )
 
 @app.post("/sendEmail")
-async def send_email(email_address: str, insights: str):
+async def send_email(email: Email):
     """
     Sends an email to the user about the insights of the conversation
     
@@ -354,46 +365,47 @@ async def send_email(email_address: str, insights: str):
         Returns:
             A confirmation message
         """
+    email_address = email.email_address
+    insights = email.insights
 
-        if not email_address:
-            logger.error("No email address provided")
-            return JSONResponse(
-                content={"message": "No email address provided"},
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-        if not insights:
-            logger.error("No insights provided")
-            return JSONResponse(
-                content={"message": "No insights provided"},
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
+    if not email_address:
+        logger.error("No email address provided")
+        return JSONResponse(
+            content={"message": "No email address provided"},
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+    if not insights:
+        logger.error("No insights provided")
+        return JSONResponse(
+            content={"message": "No insights provided"},
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
         
-        body = """
-        Hey there,
+    body = f"""
+    Hey there,
 
-        Here are the insights of the conversation:
-            
-        {insights}
+    Here are the insights of the conversation:
         
-        We hope Maggie was uselful to your wellbeing journey.
-
-        Sincerely,
-        The Maggie Team         
-        """
-        smtp_server = "smtp.gmail.com"
-        port = 465  # For SSL
-        sender_email = os.getenv("EMAIL_ADDRESS")
-        password = os.getenv("EMAIL_PASSWORD")
-
-        try:
-            context = ssl.create_default_context()
-            with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
-                server.login(sender_email, password)
-                server.sendmail(sender_email, email_address, body)
-            logger.info(f"Email sent to {email_address}")
-            return "Email sent successfully"
-        except Exception as e:
-            logger.error(f"Failed to send email: {str(e)}")
-            return f"Failed to send email: {str(e)}"
-
+    {insights}
     
+    We hope Maggie was uselful to your wellbeing journey.
+
+    Sincerely,
+    The Maggie Team         
+    """
+    smtp_server = "smtp.gmail.com"
+    port = 465  # For SSL
+    sender_email = os.getenv("EMAIL_ADDRESS")
+    password = os.getenv("EMAIL_PASSWORD")
+
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
+            server.login(sender_email, password)
+            server.sendmail(sender_email, email_address, body)
+        logger.info(f"Email sent to {email_address}")
+        return "Email sent successfully"
+    except Exception as e:
+        logger.error(f"Failed to send email: {str(e)}")
+        return f"Failed to send email: {str(e)}"
+
