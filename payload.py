@@ -29,9 +29,9 @@ DE_ESCALATION_PROTOCOL = """
 ## DE-ESCALATION FOR ANGER / YELLING
 When a user sounds angry, aggressive, or is yelling:
 1. **Stay Present—Do NOT end the call.**  
-2. **Acknowledge Emotion:** “I can hear how frustrated you are…”  
+2. **Acknowledge Emotion:** "I can hear how frustrated you are…"  
 3. **Stabilize With Breath:** Offer a guided exercise in-line:  
-   - “Maybe we could pause and do a breathing exercise together. Does that sound like something you'd like to do?"
+   - "Maybe we could pause and do a breathing exercise together. Does that sound like something you'd like to do?"
    < wait for user to respond >
     - <pause> ... breathe in slowly for 4 <pause>  .... ... 3 ...... 2 ... ... 1 .... <long pause> and out for 4 ... ... 3 ... ... 2 ... ... 1 ... ... <long pause> "  
 4. **Slow Your Cadence:** Insert longer "..." pauses to model calm pacing.  
@@ -211,6 +211,15 @@ def get_selected_tools() -> list:
                 "description": "Use this tool to create a concise summary focusing on emotional insights, cognitive patterns identified, and actionable next steps.",
                 "dynamicParameters": [
                     {
+                        "name": "sessionId",
+                        "location": "PARAMETER_LOCATION_BODY",
+                        "schema": {
+                            "description": "The unique identifier for the current session.",
+                            "type": "string"
+                        },
+                        "required": True
+                    },
+                    {
                         "name": "conversationSummary",
                         "location": "PARAMETER_LOCATION_BODY",
                         "schema": {
@@ -231,6 +240,15 @@ def get_selected_tools() -> list:
                 "modelToolName": "add_cognitive_distortions",
                 "description": "Use this tool to track cognitive distortions identified during the conversation.",
                 "dynamicParameters": [
+                    {
+                        "name": "sessionId",
+                        "location": "PARAMETER_LOCATION_BODY",
+                        "schema": {
+                            "description": "The unique identifier for the current session.",
+                            "type": "string"
+                        },
+                        "required": True
+                    },
                     {
                         "name": "cognitiveDistortions",
                         "location": "PARAMETER_LOCATION_BODY",
@@ -255,6 +273,15 @@ def get_selected_tools() -> list:
                 "modelToolName": "add_user_tasks",
                 "description": "Use this tool to create tasks for the user disscussed in the conversation.",
                 "dynamicParameters": [
+                    {
+                        "name": "sessionId",
+                        "location": "PARAMETER_LOCATION_BODY",
+                        "schema": {
+                            "description": "The unique identifier for the current session.",
+                            "type": "string"
+                        },
+                        "required": True
+                    },
                     {
                         "name": "tasks",
                         "location": "PARAMETER_LOCATION_BODY",
@@ -312,7 +339,7 @@ def get_payload(user_name: str) -> dict:
         "firstSpeakerSettings": {
             "agent": {
                 "uninterruptible": False,
-                "text": f"Hi {user_name}, it's Maggie. How have you been feeling this week?"
+                "text": f"Hey there, it's Maggie. How have you been feeling this week?"
             },
         },
     }
