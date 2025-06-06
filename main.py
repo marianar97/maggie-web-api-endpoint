@@ -79,9 +79,9 @@ def parse_results(data:List[dict]) -> List[Resource]:
         ))
     return results
 
-def fetch_and_store_resources(query:str) -> List[Resource]:
-    if not SESSION_ID:
-        logger.error("No session ID available for storing resources")
+def fetch_and_store_resources(query: str, session_id: str) -> List[Resource]:
+    if not session_id:
+        logger.error("No session ID provided for storing resources")
         return []
         
     exa = Exa(api_key = os.getenv("EXA_API_KEY"))
@@ -101,13 +101,13 @@ def fetch_and_store_resources(query:str) -> List[Resource]:
     # Store all resources in a single document instead of overwriting in a loop
     if resources:
         try:
-            doc_ref = db.collection("resources").document(SESSION_ID)
+            doc_ref = db.collection("resources").document(session_id)
             resource_data = {
                 "timestamp": datetime.now().isoformat(),
                 "resources": [resource.model_dump() for resource in resources]  # Store as array
             }
             doc_ref.set(resource_data)
-            logger.info(f"Successfully stored {len(resources)} resources for session {SESSION_ID}")
+            logger.info(f"Successfully stored {len(resources)} resources for session {session_id}")
         except Exception as e:
             logger.error(f"Failed to store resources in Firestore: {str(e)}")
     
@@ -115,6 +115,13 @@ def fetch_and_store_resources(query:str) -> List[Resource]:
 
 @app.post("/resources")
 async def create_resources(request: Request, background_tasks: BackgroundTasks):
+    session_id = request.headers.get("x-session-id")
+    if not session_id:
+        return JSONResponse(
+            content={"message": "No session ID provided"},
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+        
     body = await request.json()
     query = body.get("query", "")
     if not query:
@@ -122,7 +129,7 @@ async def create_resources(request: Request, background_tasks: BackgroundTasks):
             content={"message": "No query provided"},
             status_code=status.HTTP_400_BAD_REQUEST
         )
-    background_tasks.add_task(fetch_and_store_resources, query)
+    background_tasks.add_task(fetch_and_store_resources, query, session_id)
     return {
         "message": "Resources created successfully. Continue the conversation with the user.",
         "status": "success",
@@ -226,18 +233,27 @@ async def send_email(email: Email):
 
 @app.post("/api/ultravox")
 async def create_ultravox_call(request: Request):
-    global SESSION_ID
-    SESSION_ID = request.headers.get("x-session-id")
+    session_id = request.headers.get("x-session-id")
+    logger.info(f"Received Ultravox request with session_id: {session_id}")
+    
+    if not session_id:
+        logger.error("No session ID provided in request")
+        return JSONResponse(
+            content={"message": "No session ID provided"},
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+        
     api_key = os.getenv("ULTRAVOX_API_KEY")
     if not api_key:
-        logger.info("Ultravox API key not configured")
+        logger.error("Ultravox API key not configured in environment variables")
         return JSONResponse(
             content={"error": "Error, please try again later"},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     try:
-        payload = get_payload("")
-        # logger.info("payload", payload)
+        payload = get_payload(session_id)
+        logger.info(f"Generated payload for session {session_id}")
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://api.ultravox.ai/api/calls",
@@ -247,6 +263,8 @@ async def create_ultravox_call(request: Request):
                 },
                 json=payload,
             )
+            logger.info(f"Ultravox API response status: {response.status_code}")
+            logger.info(f"Ultravox API response body: {response.text}")
         try:
             data = response.json()
             # logger.info("data", data)
@@ -258,7 +276,7 @@ async def create_ultravox_call(request: Request):
             error_text = response.text
             # logger.info(f"Ultravox API error: {error_text}")
             return JSONResponse(
-                content={"error": "Failed to create Ultravox call", "details": error_text},
+                content={"error": "Failed to create call", "details": error_text},
                 status_code=response.status_code
             )
     except Exception as e:
@@ -274,6 +292,13 @@ async def add_cognitive_distortions(request: Request):
     Receives cognitive distortions and the session id and stores them in Firestore.
     """
     try:
+        session_id = request.headers.get("x-session-id")
+        if not session_id:
+            return JSONResponse(
+                content={"message": "No session ID provided"},
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+            
         # Parse the request body
         body = await request.json()
         # logger.info("Received cognitive distortions:", body)
@@ -294,7 +319,7 @@ async def add_cognitive_distortions(request: Request):
         }
         
         # Save to Firestore in the "CognitiveDistortions" collection
-        doc_ref = db.collection("cognitiveDistortions").document(SESSION_ID)
+        doc_ref = db.collection("cognitiveDistortions").document(session_id)
         doc_ref.set(distortion_data)
         
         # logger.info(f"Cognitive distortions saved to Firestore: {distortion_data}")
@@ -322,6 +347,13 @@ async def send_conversation_summary(request: Request):
     Receives and processes conversation summaries from Maggie.
     """
     try:
+        session_id = request.headers.get("x-session-id")
+        if not session_id:
+            return JSONResponse(
+                content={"message": "No session ID provided"},
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+            
         # Parse the request body
         body = await request.json()
         # Extract the data
@@ -338,7 +370,7 @@ async def send_conversation_summary(request: Request):
         }
         
         # Save the summary to Firestore with a fixed document name
-        doc_ref = db.collection("summaries").document(SESSION_ID)
+        doc_ref = db.collection("summaries").document(session_id)
         doc_ref.set(summary)
         
         # Return a success response
@@ -366,6 +398,13 @@ async def add_user_tasks(request: Request):
     Receives and stores tasks created for the user during the conversation.
     """
     try:
+        session_id = request.headers.get("x-session-id")
+        if not session_id:
+            return JSONResponse(
+                content={"message": "No session ID provided"},
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+            
         # Parse the request body
         body = await request.json()
         
@@ -387,7 +426,7 @@ async def add_user_tasks(request: Request):
         }
         
         # Save to Firestore in the "userTasks" collection
-        doc_ref = db.collection("userTasks").document(SESSION_ID)
+        doc_ref = db.collection("userTasks").document(session_id)
         doc_ref.set(tasks_data)
         
         logger.info(f"User tasks saved to Firestore: {tasks_data}")
@@ -500,15 +539,15 @@ async def get_user_tasks(request: Request):
     Endpoint to retrieve all user tasks from Firestore.
     """
     try:
-        # Parse the request body
-        if not SESSION_ID:
+        session_id = request.headers.get("x-session-id")
+        if not session_id:
             return JSONResponse(
-                content={"message": "No session id provided"},
+                content={"message": "No session ID provided"},
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
         # Get all documents from the userTasks collection
-        tasks_ref = db.collection("userTasks").document(SESSION_ID)
+        tasks_ref = db.collection("userTasks").document(session_id)
         doc = tasks_ref.get()
         
         # Convert to list of dictionaries
@@ -536,14 +575,15 @@ async def get_conversation_resources_data(request: Request):
     Endpoint to retrieve resources for the current session from Firestore.
     """
     try:
-        if not SESSION_ID:
+        session_id = request.headers.get("x-session-id")
+        if not session_id:
             return JSONResponse(
-                content={"message": "No session id provided"},
+                content={"message": "No session ID provided"},
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
         # Get the document with the session ID
-        doc_ref = db.collection("resources").document(SESSION_ID)
+        doc_ref = db.collection("resources").document(session_id)
         doc = doc_ref.get()
         
         if not doc.exists:
@@ -566,3 +606,25 @@ async def get_conversation_resources_data(request: Request):
         )
 
 
+@app.post("/waitlist")
+async def add_to_waitlist(request: Request):
+    """
+    Endpoint to add a user to the waitlist.
+    """
+    try:
+        body = await request.json()
+        email = body.get("email", "")
+        if not email:
+            return JSONResponse(
+                content={"message": "No email provided"},
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        doc_ref = db.collection("waitlist").document(email)
+        doc_ref.set({"email": email, "timestamp": datetime.now().isoformat()})
+        return {"message": "User added to waitlist successfully"}
+    except Exception as e:
+        logger.info(f"Error adding user to waitlist: {str(e)}")
+        return JSONResponse(
+            content={"error": str(e)},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
