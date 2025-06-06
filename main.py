@@ -2,12 +2,10 @@ import os
 import smtplib
 import ssl
 from typing import List, Optional
-import uuid
 
 from fastapi import FastAPI, status, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 import httpx
-import json
 from datetime import datetime
 from pathlib import Path
 import firebase_admin
