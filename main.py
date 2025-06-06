@@ -36,7 +36,7 @@ db = firestore.client()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://maggieweb.vercel.app", "http://localhost:8080"],  # Update if your frontend runs elsewhere
+    allow_origins=["https://maggieweb.vercel.app", "http://localhost:8080", "http://localhost:5173", "https://www.trymaggie.site"],  # Update if your frontend runs elsewhere
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
