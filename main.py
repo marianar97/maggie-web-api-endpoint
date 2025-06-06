@@ -619,7 +619,10 @@ async def add_to_waitlist(request: Request):
             )
         doc_ref = db.collection("waitlist").document(email)
         doc_ref.set({"email": email, "timestamp": datetime.now().isoformat()})
-        return {"message": "User added to waitlist successfully"}
+        return JSONResponse(
+            content={"message": "User added to waitlist successfully"},
+            status_code=status.HTTP_200_OK
+        )
     except Exception as e:
         logger.info(f"Error adding user to waitlist: {str(e)}")
         return JSONResponse(
