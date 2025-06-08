@@ -229,7 +229,7 @@ async def send_email(email: Email):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.post("/api/ultravox")
+@app.post("/api/call")
 async def create_ultravox_call(request: Request):
     session_id = request.headers.get("x-session-id")
     logger.info(f"Received Ultravox request with session_id: {session_id}")

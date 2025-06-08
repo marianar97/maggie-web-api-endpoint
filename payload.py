@@ -308,9 +308,10 @@ def get_payload(session_id: str) -> dict:
         "selectedTools": get_selected_tools(),
         "externalVoice": {
             "elevenLabs": {
-                "voiceId":"JBFqnCBsd6RMkjVDRZzb",
+                "voiceId":"ObPxmNkhdSgkzaDdcPqU",
                 "model": "eleven_multilingual_v2",
-            }
+                "maxSampleRate": 24000
+            },
         },
         "firstSpeakerSettings": {
             "agent": {
