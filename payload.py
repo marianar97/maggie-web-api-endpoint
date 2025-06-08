@@ -1,5 +1,4 @@
-# BASE_URL = "https://maggie-web-api-endpoint.onrender.com"
-BASE_URL = "https://8692-2601-241-8f00-1840-284e-69e2-dbbf-93bf.ngrok-free.app"
+BASE_URL = "https://maggie-web-api-endpoint.onrender.com"
 
 def get_system_prompt(session_id:str) -> str:
     return f"""
@@ -309,6 +308,7 @@ def get_payload(session_id: str) -> dict:
         "voice": "Cassidy-English",
         # "externalVoice": {
         #     "elevenLabs": {
+            #   ObPxmNkhdSgkzaDdcPqU
         #         "voiceId":"ObPxmNkhdSgkzaDdcPqU",
         #         "model": "eleven_multilingual_v2",
         #         "maxSampleRate": 24000
