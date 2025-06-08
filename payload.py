@@ -306,13 +306,14 @@ def get_payload(session_id: str) -> dict:
     return {
         "systemPrompt": get_system_prompt(session_id),
         "selectedTools": get_selected_tools(),
-        "externalVoice": {
-            "elevenLabs": {
-                "voiceId":"ObPxmNkhdSgkzaDdcPqU",
-                "model": "eleven_multilingual_v2",
-                "maxSampleRate": 24000
-            },
-        },
+        "voice": "Cassidy-English",
+        # "externalVoice": {
+        #     "elevenLabs": {
+        #         "voiceId":"ObPxmNkhdSgkzaDdcPqU",
+        #         "model": "eleven_multilingual_v2",
+        #         "maxSampleRate": 24000
+        #     },
+        # },
         "firstSpeakerSettings": {
             "agent": {
                 "uninterruptible": False,
