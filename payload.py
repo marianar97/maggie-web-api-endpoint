@@ -51,15 +51,17 @@ def get_system_prompt(session_id:str) -> str:
         **When to Use:** When collaboratively developing actionable next steps or homework assignments
         **Required Parameters:**
         - `sessionId`: Current session identifier
-        - `tasks`: Array of specific, measurable tasks (e.g., "Practice 4-7-8 breathing for 5 minutes daily", "Notice and write down one automatic thought per day")
+        - `task`: A specific, measurable task string (e.g., "Practice 4-7-8 breathing for 5 minutes daily")
 
-        **Best Practice:** Always frame tasks as collaboratively chosen, not prescribed.
+        **Best Practice:** Always frame tasks as collaboratively chosen, not prescribed. Call this tool multiple times if you need to add multiple tasks.
 
         ### 4. **sendConversationSummary**
         **When to Use:** ALWAYS before ending sessions or when user indicates they need to leave
         **Required Parameters:**
         - `sessionId`: Current session identifier
         - `conversationSummary`: Comprehensive summary including emotional themes, cognitive patterns, insights gained, and coping strategies discussed
+        - `identifiedCognitiveDistortions`: Array of cognitive distortions identified during the conversation
+        - `suggestedExercises`: Recommended coping strategies or exercises based on the conversation
 
         **Best Practice:** Ask what the user wants included before creating the summary.
 
@@ -179,8 +181,8 @@ def get_selected_tools() -> list:
                 "description": "Use this tool to create and store resources based on the user's query.",
                 "dynamicParameters": [
                     {
-                        "name": "x-session-id",
-                        "location": "PARAMETER_LOCATION_HEADER",
+                        "name": "sessionid",
+                        "location": "PARAMETER_LOCATION_PATH",
                         "schema": {
                             "description": "The unique identifier for the current session.",
                             "type": "string"
@@ -198,7 +200,7 @@ def get_selected_tools() -> list:
                     }
                 ],
                 "http": {
-                    "baseUrlPattern": f"{BASE_URL}/resources",
+                    "baseUrlPattern": f"{BASE_URL}/sessions/{{sessionid}}/resources",
                     "httpMethod": "POST"
                 }
             }
@@ -209,8 +211,8 @@ def get_selected_tools() -> list:
                 "description": "Use this tool to create a concise summary focusing on emotional insights, cognitive patterns identified, and actionable next steps.",
                 "dynamicParameters": [
                     {
-                        "name": "x-session-id",
-                        "location": "PARAMETER_LOCATION_HEADER",
+                        "name": "sessionid",
+                        "location": "PARAMETER_LOCATION_PATH",
                         "schema": {
                             "description": "The unique identifier for the current session.",
                             "type": "string"
@@ -225,10 +227,31 @@ def get_selected_tools() -> list:
                             "type": "string"
                         },
                         "required": True
+                    },
+                    {
+                        "name": "identifiedCognitiveDistortions",
+                        "location": "PARAMETER_LOCATION_BODY",
+                        "schema": {
+                            "description": "A list of cognitive distortions identified during the conversation.",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "required": True
+                    },
+                    {
+                        "name": "suggestedExercises",
+                        "location": "PARAMETER_LOCATION_BODY",
+                        "schema": {
+                            "description": "Recommended coping strategies or exercises based on the conversation.",
+                            "type": "string"
+                        },
+                        "required": True
                     }
                 ],
                 "http": {
-                    "baseUrlPattern": f"{BASE_URL}/conversation/summary",
+                    "baseUrlPattern": f"{BASE_URL}/sessions/{{sessionid}}/summary",
                     "httpMethod": "POST"
                 }
             }
@@ -239,8 +262,8 @@ def get_selected_tools() -> list:
                 "description": "Use this tool to track cognitive distortions identified during the conversation.",
                 "dynamicParameters": [
                     {
-                        "name": "x-session-id",
-                        "location": "PARAMETER_LOCATION_HEADER",
+                        "name": "sessionid",
+                        "location": "PARAMETER_LOCATION_PATH",
                         "schema": {
                             "description": "The unique identifier for the current session.",
                             "type": "string"
@@ -261,7 +284,7 @@ def get_selected_tools() -> list:
                     }
                 ],
                 "http": {
-                    "baseUrlPattern": f"{BASE_URL}/cognitiveDistortions",
+                    "baseUrlPattern": f"{BASE_URL}/sessions/{{sessionid}}/cognitive-distortions",
                     "httpMethod": "POST"
                 }
             }
@@ -269,11 +292,11 @@ def get_selected_tools() -> list:
         {
             "temporaryTool": {
                 "modelToolName": "add_user_tasks",
-                "description": "Use this tool to create tasks for the user disscussed in the conversation.",
+                "description": "Use this tool to create tasks for the user discussed in the conversation.",
                 "dynamicParameters": [
                     {
-                        "name": "x-session-id",
-                        "location": "PARAMETER_LOCATION_HEADER",
+                        "name": "sessionid",
+                        "location": "PARAMETER_LOCATION_PATH",
                         "schema": {
                             "description": "The unique identifier for the current session.",
                             "type": "string"
@@ -281,20 +304,17 @@ def get_selected_tools() -> list:
                         "required": True
                     },
                     {
-                        "name": "tasks",
+                        "name": "task",
                         "location": "PARAMETER_LOCATION_BODY",
                         "schema": {
-                            "description": "An array of task strings that the user should complete.",
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
+                            "description": "A task string that the user should complete.",
+                            "type": "string"
                         },
                         "required": True
                     }
                 ],
                 "http": {
-                    "baseUrlPattern": f"{BASE_URL}/userTasks",
+                    "baseUrlPattern": f"{BASE_URL}/sessions/{{sessionid}}/tasks",
                     "httpMethod": "POST"
                 }
             }

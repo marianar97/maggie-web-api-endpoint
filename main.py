@@ -96,10 +96,10 @@ def fetch_and_store_resources(query: str, session_id: str) -> List[Resource]:
     
     resources = parse_results(data)
     
-    # Store all resources in a single document instead of overwriting in a loop
+    # Store all resources in a single document under sessions/{session_id}/resources/
     if resources:
         try:
-            doc_ref = db.collection("resources").document(session_id)
+            doc_ref = db.collection("sessions").document(session_id).collection("resources").document("resources_doc")
             resource_data = {
                 "timestamp": datetime.now().isoformat(),
                 "resources": [resource.model_dump() for resource in resources]  # Store as array
@@ -313,8 +313,8 @@ async def add_session_cognitive_distortions(session_id: str, request: Request):
             "distortions": cognitive_distortions
         }
         
-        # Save to Firestore in the "CognitiveDistortions" collection
-        doc_ref = db.collection("cognitiveDistortions").document(session_id)
+        # Save to Firestore under sessions/{session_id}/cognitiveDistortions/
+        doc_ref = db.collection("sessions").document(session_id).collection("cognitiveDistortions").document()
         doc_ref.set(distortion_data)
         
         # logger.info(f"Cognitive distortions saved to Firestore: {distortion_data}")
@@ -365,8 +365,8 @@ async def create_session_summary(session_id: str, request: Request):
             "suggestedExercises": suggested_exercises
         }
         
-        # Save the summary to Firestore with a fixed document name
-        doc_ref = db.collection("summaries").document(session_id)
+        # Save the summary to Firestore under sessions/{session_id}/summaries/
+        doc_ref = db.collection("sessions").document(session_id).collection("summaries").document("summary_doc")
         doc_ref.set(summary)
         
         # Return a success response
@@ -414,8 +414,8 @@ async def create_session_task(session_id: str, request: Request):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get reference to the document
-        doc_ref = db.collection("userTasks").document(session_id)
+        # Get reference to the document under sessions/{session_id}/tasks/
+        doc_ref = db.collection("sessions").document(session_id).collection("tasks").document("tasks_doc")
         doc = doc_ref.get()
         
         # Check if document already exists
@@ -463,19 +463,24 @@ async def get_all_summaries():
     Endpoint to retrieve all conversation summaries from Firestore.
     """
     try:
-        # Get all documents from the summaries collection
-        summaries_ref = db.collection("summaries")
-        docs = summaries_ref.stream()
+        # Get all session documents first, then their summaries
+        sessions_ref = db.collection("sessions")
+        session_docs = sessions_ref.stream()
         
         # Convert to list of dictionaries
         summaries = []
-        for doc in docs:
-            summary = doc.to_dict()
-            summary["id"] = doc.id
-            summaries.append(summary)
+        for session_doc in session_docs:
+            session_id = session_doc.id
+            # Get the summary for this session
+            summary_ref = db.collection("sessions").document(session_id).collection("summaries").document("summary_doc")
+            summary_doc = summary_ref.get()
+            if summary_doc.exists:
+                summary = summary_doc.to_dict()
+                summary["id"] = session_id  # Use session_id as the summary id
+                summary["session_id"] = session_id
+                summaries.append(summary)
         
         # Sort by timestamp (most recent first)
-        # Handle both string and datetime timestamps
         def safe_timestamp_sort(item):
             timestamp = item.get("timestamp", "")
             if hasattr(timestamp, 'isoformat'):
@@ -500,8 +505,8 @@ async def get_summary(summary_id: str):
     Endpoint to retrieve a specific conversation summary from Firestore.
     """
     try:
-        # Get the document with the given ID
-        doc_ref = db.collection("summaries").document(summary_id)
+        # Get the document with the given ID from sessions/{summary_id}/summaries/summary_doc
+        doc_ref = db.collection("sessions").document(summary_id).collection("summaries").document("summary_doc")
         doc = doc_ref.get()
         
         if not doc.exists:
@@ -512,7 +517,8 @@ async def get_summary(summary_id: str):
         
         # Convert to dictionary and add the ID
         summary = doc.to_dict()
-        summary["id"] = doc.id
+        summary["id"] = summary_id
+        summary["session_id"] = summary_id
         
         return summary
         
@@ -521,7 +527,7 @@ async def get_summary(summary_id: str):
         return JSONResponse(
             content={"error": str(e)},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        ) 
+        )
 
 @app.get("/sessions/{session_id}/cognitive-distortions")
 async def get_session_cognitive_distortions(session_id: str):
@@ -529,13 +535,13 @@ async def get_session_cognitive_distortions(session_id: str):
     Endpoint to retrieve cognitive distortions for a specific session from Firestore.
     """
     try:
-        # Get all documents from the CognitiveDistortions collection
-        distortions_ref = db.collection("cognitiveDistortions").document(session_id)
-        doc = distortions_ref.get()
+        # Get all documents from the sessions/{session_id}/cognitiveDistortions/ collection
+        distortions_ref = db.collection("sessions").document(session_id).collection("cognitiveDistortions")
+        docs = distortions_ref.stream()
         
         # Convert to list of dictionaries
         distortions_data = []
-        if doc.exists:
+        for doc in docs:
             data = doc.to_dict()
             data["id"] = doc.id
             distortions_data.append(data)
@@ -556,7 +562,7 @@ async def get_session_cognitive_distortions(session_id: str):
         return JSONResponse(
             content={"error": str(e)},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        ) 
+        )
 
 @app.get("/sessions/{session_id}/tasks")
 async def get_session_tasks(session_id: str):
@@ -570,8 +576,8 @@ async def get_session_tasks(session_id: str):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get all documents from the userTasks collection
-        tasks_ref = db.collection("userTasks").document(session_id)
+        # Get the document from sessions/{session_id}/tasks/tasks_doc
+        tasks_ref = db.collection("sessions").document(session_id).collection("tasks").document("tasks_doc")
         doc = tasks_ref.get()
         
         # Convert to list of dictionaries
@@ -579,6 +585,7 @@ async def get_session_tasks(session_id: str):
         if doc.exists:
             data = doc.to_dict()
             data["id"] = doc.id
+            data["session_id"] = session_id
             tasks_data.append(data)
         
         # Sort by timestamp (most recent first)
@@ -611,8 +618,8 @@ async def get_session_resources(session_id: str):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get the document with the session ID
-        doc_ref = db.collection("resources").document(session_id)
+        # Get the document from sessions/{session_id}/resources/resources_doc
+        doc_ref = db.collection("sessions").document(session_id).collection("resources").document("resources_doc")
         doc = doc_ref.get()
         
         if not doc.exists:
@@ -624,6 +631,7 @@ async def get_session_resources(session_id: str):
         # Convert to dictionary and add the ID
         resources_data = doc.to_dict()
         resources_data["id"] = doc.id
+        resources_data["session_id"] = session_id
         
         return resources_data
         
