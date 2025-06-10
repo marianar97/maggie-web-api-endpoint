@@ -65,9 +65,9 @@ def parse_results(data:List[dict]) -> List[Resource]:
         text = result.text.strip()
         text = text.lstrip('\n')
         image = None
-        if result.image:
+        if hasattr(result, 'image'):
             image = result.image
-        elif result.favicon:
+        elif hasattr(result, 'favicon'):
             image = result.favicon
         results.append(Resource(
                 url = result.url,
@@ -111,15 +111,20 @@ def fetch_and_store_resources(query: str, session_id: str) -> List[Resource]:
     
     return resources
 
-@app.post("/sessions/{session_id}/resources")
-async def create_session_resources(session_id: str, request: Request, background_tasks: BackgroundTasks):
+@app.post("/sessions/resources")
+async def create_session_resources(request: Request, background_tasks: BackgroundTasks):
+    # Parse the request body first
+    body = await request.json()
+    
+    # Extract session_id from body
+    session_id = body.get("session_id", "")
+    
     if not session_id:
         return JSONResponse(
             content={"message": "No session ID provided"},
             status_code=status.HTTP_400_BAD_REQUEST
         )
         
-    body = await request.json()
     query = body.get("query", "")
     if not query:
         return JSONResponse(
@@ -281,21 +286,25 @@ async def create_session_call(session_id: str, request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         ) 
 
-@app.post("/sessions/{session_id}/cognitive-distortions")
-async def add_session_cognitive_distortions(session_id: str, request: Request):
+@app.post("/sessions/cognitive-distortions")
+async def add_session_cognitive_distortions(request: Request):
     """
     Endpoint handler for the cognitiveDistortions tool.
     Receives cognitive distortions and the session id and stores them in Firestore.
     """
     try:
+        # Parse the request body
+        body = await request.json()
+        
+        # Extract session_id from body
+        session_id = body.get("session_id", "")
+        
         if not session_id:
             return JSONResponse(
                 content={"message": "No session ID provided"},
                 status_code=status.HTTP_400_BAD_REQUEST
             )
             
-        # Parse the request body
-        body = await request.json()
         # logger.info("Received cognitive distortions:", body)
         
         # Extract the cognitive distortions
@@ -307,15 +316,29 @@ async def add_session_cognitive_distortions(session_id: str, request: Request):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create a timestamped distortions object
-        distortion_data = {
-            "timestamp": datetime.now().isoformat(),
-            "distortions": cognitive_distortions
-        }
+        # Get reference to the document under sessions/{session_id}/cognitive-distortions/distortions_doc
+        doc_ref = db.collection("sessions").document(session_id).collection("cognitive-distortions").document("distortions_doc")
+        doc = doc_ref.get()
         
-        # Save to Firestore under sessions/{session_id}/cognitiveDistortions/
-        doc_ref = db.collection("sessions").document(session_id).collection("cognitiveDistortions").document()
-        doc_ref.set(distortion_data)
+        # Check if document already exists
+        if doc.exists:
+            # Document exists, append to existing distortions list
+            existing_data = doc.to_dict()
+            existing_distortions = existing_data.get("distortions", [])
+            existing_distortions.extend(cognitive_distortions)
+            
+            distortion_data = {
+                "timestamp": datetime.now().isoformat(),
+                "distortions": existing_distortions
+            }
+            doc_ref.update(distortion_data)
+        else:
+            # Document doesn't exist, create new with distortions list
+            distortion_data = {
+                "timestamp": datetime.now().isoformat(),
+                "distortions": cognitive_distortions
+            }
+            doc_ref.set(distortion_data)
         
         # logger.info(f"Cognitive distortions saved to Firestore: {distortion_data}")
         
@@ -336,22 +359,26 @@ async def add_session_cognitive_distortions(session_id: str, request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.post("/sessions/{session_id}/summary")
-async def create_session_summary(session_id: str, request: Request):
+@app.post("/sessions/summary")
+async def create_session_summary(request: Request):
     # logger.info("in conversation summary")
     """
     Endpoint handler for the summarizeConversation tool.
     Receives and processes conversation summaries from Maggie.
     """
     try:
+        # Parse the request body
+        body = await request.json()
+        
+        # Extract session_id from body
+        session_id = body.get("session_id", "")
+        
         if not session_id:
             return JSONResponse(
                 content={"message": "No session ID provided"},
                 status_code=status.HTTP_400_BAD_REQUEST
             )
             
-        # Parse the request body
-        body = await request.json()
         # Extract the data
         conversation_summary = body.get("conversationSummary", "")
         identified_distortions = body.get("identifiedCognitiveDistortions", [])
@@ -389,22 +416,25 @@ async def create_session_summary(session_id: str, request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.post("/sessions/{session_id}/tasks")
-async def create_session_task(session_id: str, request: Request):
+@app.post("/sessions/tasks")
+async def create_session_task(request: Request):
     """
     Endpoint handler for the addUserTasks tool.
     Receives and stores tasks created for the user during the conversation.
     """
     try:
+        # Parse the request body
+        body = await request.json()
+        
+        # Extract session_id from body
+        session_id = body.get("session_id", "")
+        
         if not session_id:
             return JSONResponse(
                 content={"message": "No session ID provided"},
                 status_code=status.HTTP_400_BAD_REQUEST
             )
             
-        # Parse the request body
-        body = await request.json()
-        
         # Extract the tasks
         task = body.get("task", "")
         

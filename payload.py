@@ -1,4 +1,14 @@
-BASE_URL = "https://maggie-web-api-endpoint.onrender.com"
+# BASE_URL = "https://maggie-web-api-endpoint.onrender.com"
+import os
+from dotenv import load_dotenv
+
+# Check if BASE_URL is set as an environment variable first
+BASE_URL = os.getenv("BASE_URL")
+
+# If no environment variable is set, load from .env file
+if BASE_URL is None:
+    load_dotenv()
+    BASE_URL = os.getenv("BASE_URL")
 
 def get_system_prompt(session_id:str) -> str:
     return f"""
@@ -47,7 +57,7 @@ def get_system_prompt(session_id:str) -> str:
 
         **Best Practice:** Offer to create resources when users want to dive deeper: "Would it help if I created some resources about managing this type of thinking pattern?"
 
-        ### 3. **add_user_tasks**
+        ### 3. **create_session_task**
         **When to Use:** When collaboratively developing actionable next steps or homework assignments
         **Required Parameters:**
         - `sessionId`: Current session identifier
@@ -125,7 +135,7 @@ def get_system_prompt(session_id:str) -> str:
         ### Integration Phase
         - Summarize insights and progress
         - Collaboratively plan actionable next steps
-        - Use **add_user_tasks** for agreed-upon actions
+        - Use **create_session_task** for agreed-upon actions
 
         ### Closing Phase
         - Always use **sendConversationSummary** 
@@ -181,8 +191,8 @@ def get_selected_tools() -> list:
                 "description": "Use this tool to create and store resources based on the user's query.",
                 "dynamicParameters": [
                     {
-                        "name": "sessionid",
-                        "location": "PARAMETER_LOCATION_PATH",
+                        "name": "session_id",
+                        "location": "PARAMETER_LOCATION_BODY",
                         "schema": {
                             "description": "The unique identifier for the current session.",
                             "type": "string"
@@ -200,7 +210,7 @@ def get_selected_tools() -> list:
                     }
                 ],
                 "http": {
-                    "baseUrlPattern": f"{BASE_URL}/sessions/{{sessionid}}/resources",
+                    "baseUrlPattern": f"{BASE_URL}/sessions/resources",
                     "httpMethod": "POST"
                 }
             }
@@ -211,8 +221,8 @@ def get_selected_tools() -> list:
                 "description": "Use this tool to create a concise summary focusing on emotional insights, cognitive patterns identified, and actionable next steps.",
                 "dynamicParameters": [
                     {
-                        "name": "sessionid",
-                        "location": "PARAMETER_LOCATION_PATH",
+                        "name": "session_id",
+                        "location": "PARAMETER_LOCATION_BODY",
                         "schema": {
                             "description": "The unique identifier for the current session.",
                             "type": "string"
@@ -251,7 +261,7 @@ def get_selected_tools() -> list:
                     }
                 ],
                 "http": {
-                    "baseUrlPattern": f"{BASE_URL}/sessions/{{sessionid}}/summary",
+                    "baseUrlPattern": f"{BASE_URL}/sessions/summary",
                     "httpMethod": "POST"
                 }
             }
@@ -262,8 +272,8 @@ def get_selected_tools() -> list:
                 "description": "Use this tool to track cognitive distortions identified during the conversation.",
                 "dynamicParameters": [
                     {
-                        "name": "sessionid",
-                        "location": "PARAMETER_LOCATION_PATH",
+                        "name": "session_id",
+                        "location": "PARAMETER_LOCATION_BODY",
                         "schema": {
                             "description": "The unique identifier for the current session.",
                             "type": "string"
@@ -284,19 +294,19 @@ def get_selected_tools() -> list:
                     }
                 ],
                 "http": {
-                    "baseUrlPattern": f"{BASE_URL}/sessions/{{sessionid}}/cognitive-distortions",
+                    "baseUrlPattern": f"{BASE_URL}/sessions/cognitive-distortions",
                     "httpMethod": "POST"
                 }
             }
         },
         {
             "temporaryTool": {
-                "modelToolName": "add_user_tasks",
+                "modelToolName": "create_session_task",
                 "description": "Use this tool to create tasks for the user discussed in the conversation.",
                 "dynamicParameters": [
                     {
-                        "name": "sessionid",
-                        "location": "PARAMETER_LOCATION_PATH",
+                        "name": "session_id",
+                        "location": "PARAMETER_LOCATION_BODY",
                         "schema": {
                             "description": "The unique identifier for the current session.",
                             "type": "string"
@@ -314,7 +324,7 @@ def get_selected_tools() -> list:
                     }
                 ],
                 "http": {
-                    "baseUrlPattern": f"{BASE_URL}/sessions/{{sessionid}}/tasks",
+                    "baseUrlPattern": f"{BASE_URL}/sessions/tasks",
                     "httpMethod": "POST"
                 }
             }
