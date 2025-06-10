@@ -111,9 +111,8 @@ def fetch_and_store_resources(query: str, session_id: str) -> List[Resource]:
     
     return resources
 
-@app.post("/resources")
-async def create_resources(request: Request, background_tasks: BackgroundTasks):
-    session_id = request.headers.get("x-session-id")
+@app.post("/sessions/{session_id}/resources")
+async def create_session_resources(session_id: str, request: Request, background_tasks: BackgroundTasks):
     if not session_id:
         return JSONResponse(
             content={"message": "No session ID provided"},
@@ -138,7 +137,7 @@ async def create_resources(request: Request, background_tasks: BackgroundTasks):
 def read_root():
     return {"message": "Hello, World!"}
 
-@app.post("/sendEmail")
+@app.post("/emails")
 async def send_email(email: Email):
     """
     Sends an email to the user about the insights of the conversation
@@ -229,9 +228,8 @@ async def send_email(email: Email):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.post("/api/call")
-async def create_ultravox_call(request: Request):
-    session_id = request.headers.get("x-session-id")
+@app.post("/sessions/{session_id}/calls")
+async def create_session_call(session_id: str, request: Request):
     logger.info(f"Received Ultravox request with session_id: {session_id}")
     
     if not session_id:
@@ -283,14 +281,13 @@ async def create_ultravox_call(request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         ) 
 
-@app.post("/cognitiveDistortions")
-async def add_cognitive_distortions(request: Request):
+@app.post("/sessions/{session_id}/cognitive-distortions")
+async def add_session_cognitive_distortions(session_id: str, request: Request):
     """
     Endpoint handler for the cognitiveDistortions tool.
     Receives cognitive distortions and the session id and stores them in Firestore.
     """
     try:
-        session_id = request.headers.get("x-session-id")
         if not session_id:
             return JSONResponse(
                 content={"message": "No session ID provided"},
@@ -324,7 +321,9 @@ async def add_cognitive_distortions(request: Request):
         
         return {
             "message": "Cognitive distortions saved successfully. Continue the conversation with the user.",
-            "distortion_id": doc_ref.id
+            "distortion_id": doc_ref.id,
+            "status": "success",
+            "status_code": status.HTTP_200_OK
         }
         
     except Exception as e:
@@ -337,15 +336,14 @@ async def add_cognitive_distortions(request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.post("/conversation/summary")
-async def send_conversation_summary(request: Request):
+@app.post("/sessions/{session_id}/summary")
+async def create_session_summary(session_id: str, request: Request):
     # logger.info("in conversation summary")
     """
     Endpoint handler for the summarizeConversation tool.
     Receives and processes conversation summaries from Maggie.
     """
     try:
-        session_id = request.headers.get("x-session-id")
         if not session_id:
             return JSONResponse(
                 content={"message": "No session ID provided"},
@@ -376,7 +374,9 @@ async def send_conversation_summary(request: Request):
         
         return {
             "message": "Conversation summary saved successfully. Continue the conversation with the user.",
-            "summary_id": doc_ref.id
+            "summary_id": doc_ref.id,
+            "status": "success",
+            "status_code": status.HTTP_200_OK
         }
         
     except Exception as e:
@@ -389,14 +389,13 @@ async def send_conversation_summary(request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.post("/userTasks")
-async def add_user_tasks(request: Request):
+@app.post("/sessions/{session_id}/tasks")
+async def create_session_task(session_id: str, request: Request):
     """
     Endpoint handler for the addUserTasks tool.
     Receives and stores tasks created for the user during the conversation.
     """
     try:
-        session_id = request.headers.get("x-session-id")
         if not session_id:
             return JSONResponse(
                 content={"message": "No session ID provided"},
@@ -407,45 +406,59 @@ async def add_user_tasks(request: Request):
         body = await request.json()
         
         # Extract the tasks
-        tasks = body.get("tasks", [])
+        task = body.get("task", "")
         
-        if not tasks:
+        if not task:
             return JSONResponse(
-                content={"message": "No tasks provided"},
+                content={"message": "No task provided"},
                 status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        
-        # Create a timestamped tasks object
-        tasks_data = {
-            "timestamp": datetime.now().isoformat(),
-            "tasks": tasks,
-            "completed": [False] * len(tasks)  # Initialize all tasks as not completed
-        }
-        
-        # Save to Firestore in the "userTasks" collection
+        # Get reference to the document
         doc_ref = db.collection("userTasks").document(session_id)
-        doc_ref.set(tasks_data)
+        doc = doc_ref.get()
+        
+        # Check if document already exists
+        if doc.exists:
+            # Document exists, append to existing tasks list
+            existing_data = doc.to_dict()
+            existing_tasks = existing_data.get("tasks", [])
+            existing_tasks.append(task)
+            
+            tasks_data = {
+                "timestamp": datetime.now().isoformat(),
+                "tasks": existing_tasks
+            }
+            doc_ref.update(tasks_data)
+        else:
+            # Document doesn't exist, create new with tasks list
+            tasks_data = {
+                "timestamp": datetime.now().isoformat(),
+                "tasks": [task]
+            }
+            doc_ref.set(tasks_data)
         
         logger.info(f"User tasks saved to Firestore: {tasks_data}")
         
         return {
-            "message": "User tasks saved successfully. Continue the conversation with the user.",
-            "task_id": doc_ref.id
+            "message": "User task saved successfully. Continue the conversation with the user.",
+            "task_id": doc_ref.id,
+            "status": "success",
+            "status_code": status.HTTP_200_OK
         }
         
     except Exception as e:
-        logger.info(f"Error saving user tasks: {str(e)}")
+        logger.info(f"Error saving user task: {str(e)}")
         return JSONResponse(
             content={
-                "message": "Failed to save user tasks. You can still continue the conversation with the user.",
+                "message": "Failed to save user task. You can still continue the conversation with the user.",
                 "error": str(e)
             },
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.get("/conversation/summaries")
-async def get_conversation_summaries():
+@app.get("/summaries")
+async def get_all_summaries():
     """
     Endpoint to retrieve all conversation summaries from Firestore.
     """
@@ -462,7 +475,15 @@ async def get_conversation_summaries():
             summaries.append(summary)
         
         # Sort by timestamp (most recent first)
-        summaries.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        # Handle both string and datetime timestamps
+        def safe_timestamp_sort(item):
+            timestamp = item.get("timestamp", "")
+            if hasattr(timestamp, 'isoformat'):
+                # If it's a datetime object, convert to string
+                return timestamp.isoformat()
+            return str(timestamp)
+        
+        summaries.sort(key=safe_timestamp_sort, reverse=True)
         
         return {"summaries": summaries}
         
@@ -473,8 +494,8 @@ async def get_conversation_summaries():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.get("/conversation/summary/{summary_id}")
-async def get_conversation_summary(summary_id: str):
+@app.get("/summaries/{summary_id}")
+async def get_summary(summary_id: str):
     """
     Endpoint to retrieve a specific conversation summary from Firestore.
     """
@@ -502,8 +523,8 @@ async def get_conversation_summary(summary_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         ) 
 
-@app.get("/cognitiveDistortions/{session_id}")
-async def get_cognitive_distortions(session_id: str):
+@app.get("/sessions/{session_id}/cognitive-distortions")
+async def get_session_cognitive_distortions(session_id: str):
     """
     Endpoint to retrieve cognitive distortions for a specific session from Firestore.
     """
@@ -520,7 +541,13 @@ async def get_cognitive_distortions(session_id: str):
             distortions_data.append(data)
         
         # Sort by timestamp (most recent first)
-        distortions_data.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        def safe_timestamp_sort(item):
+            timestamp = item.get("timestamp", "")
+            if hasattr(timestamp, 'isoformat'):
+                return timestamp.isoformat()
+            return str(timestamp)
+        
+        distortions_data.sort(key=safe_timestamp_sort, reverse=True)
         
         return {"cognitiveDistortions": distortions_data}
         
@@ -531,13 +558,12 @@ async def get_cognitive_distortions(session_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         ) 
 
-@app.get("/userTasks")
-async def get_user_tasks(request: Request):
+@app.get("/sessions/{session_id}/tasks")
+async def get_session_tasks(session_id: str):
     """
     Endpoint to retrieve all user tasks from Firestore.
     """
     try:
-        session_id = request.headers.get("x-session-id")
         if not session_id:
             return JSONResponse(
                 content={"message": "No session ID provided"},
@@ -556,7 +582,13 @@ async def get_user_tasks(request: Request):
             tasks_data.append(data)
         
         # Sort by timestamp (most recent first)
-        tasks_data.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        def safe_timestamp_sort(item):
+            timestamp = item.get("timestamp", "")
+            if hasattr(timestamp, 'isoformat'):
+                return timestamp.isoformat()
+            return str(timestamp)
+        
+        tasks_data.sort(key=safe_timestamp_sort, reverse=True)
         
         return {"userTasks": tasks_data}
         
@@ -567,13 +599,12 @@ async def get_user_tasks(request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@app.get("/conversation/resources")
-async def get_conversation_resources_data(request: Request):
+@app.get("/sessions/{session_id}/resources")
+async def get_session_resources(session_id: str):
     """
     Endpoint to retrieve resources for the current session from Firestore.
     """
     try:
-        session_id = request.headers.get("x-session-id")
         if not session_id:
             return JSONResponse(
                 content={"message": "No session ID provided"},
